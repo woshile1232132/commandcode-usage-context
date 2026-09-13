@@ -10,7 +10,7 @@ setlocal
 
 
 
-set "DEST=%USERPROFILE%\.commandcode\mods\commandcode-usage"
+set "DEST=%USERPROFILE%\.commandcode\mods\usage-context"
 
 
 
@@ -110,7 +110,7 @@ if not exist "%DEST%" mkdir "%DEST%"
 
 
 
-copy /y "%~dp0commandcode-usage\index.mjs" "%DEST%\index.mjs" >nul
+copy /y "%~dp0usage-context\index.mjs" "%DEST%\index.mjs" >nul
 
 
 
