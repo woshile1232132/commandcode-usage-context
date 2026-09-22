@@ -11,7 +11,7 @@
 在 Command Code CLI 交互界面底部常驻一行实时状态栏，无需发消息、无需切窗口：
 
 ```
-额度剩余 64% · 已用 36%|峰2.0x|距谷2h13m|输入:696.7万|输出:12.1万|缓存:686.4万|缓存率:98.5%|费用:0.1086|上下文:██░░░░░░░░ 19.5% 194.8k/1M
+额度剩余 64% · 已用 36%|峰2.0x|距谷2h13m|输入:696.7万|输出:12.1万|缓存率:98.5%|费用:0.1086|上下文:██░░░░░░░░ 19.5% 194.8k/1M
 ```
 
 - **每次模型响应完成即刷新**（时间粒度 = 每次 API 调用）
@@ -47,7 +47,7 @@ mod 通过 CLI 自带的 mod 加载机制（`~/.commandcode/mods/`）注册钩�
 
 | 项 | 含义 |
 |---|---|
-| 输入 / 输出 / 缓存 | CLI 落盘的官方真实用量（每条回复落盘时记录） |
+| 输入 / 输出 / 缓存 | CLI 落盘的官方真实用量（每条回复落盘时记录）。**缓存绝对量默认不显示** —— 它与缓存率信息重叠（缓存 ≈ 输入 × 缓存率），需要时把 `SHOW.cacheAbs` 改成 `true` |
 | 缓存率 | 缓存读 ÷ 输入（缓存读是输入的子集，越高越省钱） |
 | 费用 | 按官方牌价折算的**参考值**（峰谷感知），非实际账单——订阅套餐扣的是额度，精确账单以官网为准 |
 | 上下文 | 最近一次请求的总输入 ÷ 窗口上限（估算口径，与 CLI 内置指示一致） |
@@ -69,6 +69,7 @@ mod 通过 CLI 自带的 mod 加载机制（`~/.commandcode/mods/`）注册钩�
 |---|---|
 | `CONTEXT_LIMIT` | 上下文窗口上限，默认 1M（deepseek-v4.1-flash）；换其他窗口大小的模型请同步修改 |
 | `LANG` | 界面语言：`"zh-CN"`（默认，万/亿）/ `"en"`（英文标签 + k/M 单位） |
+| `SHOW.cacheAbs` | 是否显示「缓存」绝对量（默认 `false`，只留缓存率，省 13 列） |
 | `QUOTA.enabled` | 剩余额度查询开关（默认 `true`；设 `false` 即完全本地、零网络请求） |
 | `QUOTA.position` | 额度段位置：`"head"` 放最左（窄终端也保得住）/ `"tail"` 追加行尾 |
 | `QUOTA.ttlMs` | 额度刷新节流（默认 120000 = 2 分钟）；别调到 10s 以下，那是内部账单接口 |
@@ -133,7 +134,7 @@ fsutil behavior set disablelastaccess 2     （开启后重开会话生效）
 A live status bar pinned to the bottom of the Command Code CLI interactive UI — no need to send a message or switch windows:
 
 ```
-Credits 64% left · 36% used|peak2x|to offpeak 2h13m|Input:696.7万|Output:12.1万|Cache:686.4万|Cache rate:98.5%|Cost:0.1086|Context:██░░░░░░░░ 19.5% 194.8k/1M
+Credits 64% left · 36% used|peak2x|to offpeak 2h13m|Input:696.7万|Output:12.1万|Cache rate:98.5%|Cost:0.1086|Context:██░░░░░░░░ 19.5% 194.8k/1M
 ```
 
 - **Refreshes on every model response** (granularity = per API call)
@@ -170,7 +171,7 @@ The installer auto-detects: the CLI data directory, the cmdc command and version
 
 | Item | Meaning |
 |---|---|
-| Input / Output / Cache | Official usage as written by the CLI (recorded per reply) |
+| Input / Output / Cache | Real usage written by the CLI. The **absolute cache figure is hidden by default** — it overlaps with the cache rate (cache ≈ input × cache rate); set `SHOW.cacheAbs` to `true` to show it |
 | Cache rate | cache read ÷ input (cache read is a subset of input; higher = cheaper) |
 | Cost | A **reference value** converted at official list prices (peak/off-peak aware), not an actual bill — subscriptions deduct quota; exact billing per the official site |
 | Context | Latest request's total input ÷ window limit (estimated, same as the CLI's built-in indicator) |
@@ -192,6 +193,7 @@ Reads the credential from your local `~/.commandcode/auth.json` (or the `COMMAND
 |---|---|
 | `CONTEXT_LIMIT` | Context window limit, default 1M (deepseek-v4.1-flash); adjust when switching models |
 | `LANG` | UI language: `"zh-CN"` (default, 万/亿) / `"en"` (English labels + k/M units) |
+| `SHOW.cacheAbs` | Show the absolute cache figure (default `false`; cache rate only, saves ~13 columns) |
 | `QUOTA.enabled` | Remaining-credits switch (default `true`; set `false` for fully local, zero network requests) |
 | `QUOTA.position` | Credit segment position: `"head"` leftmost (survives narrow terminals) / `"tail"` appended |
 | `QUOTA.ttlMs` | Credits refresh throttle (default 120000 = 2 min); don't go below ~10s, it's an internal billing endpoint |
