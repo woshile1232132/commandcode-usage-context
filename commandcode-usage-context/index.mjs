@@ -56,8 +56,8 @@ const LABELS = {
     peak: "峰2.0x", off: "谷1.0x", toPeak: "距峰", toOff: "距谷",
     input: "输入:", output: "输出:", cache: "缓存:",
     rate: "缓存率:", cost: "费用:", ctx: "上下文:",
-    quota: "额度剩余 {rpct}% · 已用 {pct}%",
-    quotaExtras: "额度 {left} · 已用 {pct}%",
+    quota: "额度剩余 {rpct}%",
+    quotaExtras: "额度 {left}",
     quotaFallback: "额度 {left}",
   },
   en: {
@@ -65,8 +65,8 @@ const LABELS = {
     peak: "peak2x", off: "offpeak1x", toPeak: "to peak ", toOff: "to offpeak ",
     input: "in:", output: "out:", cache: "cache:",
     rate: "cache hit:", cost: "cost:", ctx: "ctx:",
-    quota: "credits {rpct}% left · {pct}% used",
-    quotaExtras: "credits {left} · {pct}% used",
+    quota: "credits {rpct}% left",
+    quotaExtras: "credits {left}",
     quotaFallback: "credits {left}",
   },
 };
