@@ -64,9 +64,9 @@ const LABELS = {
   },
   en: {
     units: "si",                                           // k / M
-    peak: "peak2x", off: "offpeak1x", toPeak: "to peak ", toOff: "to offpeak ",
+    peak: "peak2x", off: "offpeak1x", toPeak: "to peak ", toOff: "to off ",
     input: "in:", output: "out:", cache: "cache:",
-    rate: "cache hit:", cost: "cost:", ctx: "ctx:",
+    rate: "hit:", cost: "$", ctx: "ctx:",
     quota: "credits {rpct}% left",
     quotaExtras: "credits {left}",
     quotaFallback: "credits {left}",
