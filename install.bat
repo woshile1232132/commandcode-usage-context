@@ -10,7 +10,7 @@ setlocal
 
 
 
-set "DEST=%USERPROFILE%\.commandcode\mods\usage-context"
+set "DEST=%USERPROFILE%\.commandcode\mods\commandcode-usage-context"
 
 
 
@@ -110,7 +110,7 @@ if not exist "%DEST%" mkdir "%DEST%"
 
 
 
-copy /y "%~dp0usage-context\index.mjs" "%DEST%\index.mjs" >nul
+copy /y "%~dp0commandcode-usage-context\index.mjs" "%DEST%\index.mjs" >nul
 
 
 
@@ -118,7 +118,7 @@ if errorlevel 1 (
 
 
 
-  echo [ERROR] 复制失败，请手动将 commandcode-usage 文件夹复制到 %DEST%
+  echo [ERROR] 复制失败，请手动将 commandcode-usage-context 文件夹复制到 %DEST%
 
 
 

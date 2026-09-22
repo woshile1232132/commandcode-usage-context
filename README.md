@@ -16,6 +16,7 @@
 
 - **每次模型响应完成即刷新**（时间粒度 = 每次 API 调用）
 - **峰谷感知计费**：工作日北京时间 9-12、14-18 为峰段（2× 价），周末与其余时段谷段（1×）
+- **峰谷实时标记**：状态栏最左显示 `峰2.0x` / `谷1.0x` 与 `距峰/距谷` 倒计时，跨边界自动翻转
 - **上下文窗口进度条**：一眼看出当前会话上下文占用
 - 全程本地运行、不联网、不向模型注入任何内容，**零 token 消耗**
 
@@ -37,7 +38,7 @@ mod 通过 CLI 自带的 mod 加载机制（`~/.commandcode/mods/`）注册钩�
 
 安装器会自动检测：CLI 数据目录、cmdc 命令与版本、atime 是否开启，任何异常都会明确提示。
 
-（手动方式：把 `commandcode-usage` 文件夹整体复制到 `%USERPROFILE%\.commandcode\mods\` 下）
+（手动方式：把 `commandcode-usage-context` 文件夹整体复制到 `%USERPROFILE%\.commandcode\mods\` 下）
 
 ## 显示口径
 
@@ -53,7 +54,8 @@ mod 通过 CLI 自带的 mod 加载机制（`~/.commandcode/mods/`）注册钩�
 | 常量 | 说明 |
 |---|---|
 | `CONTEXT_LIMIT` | 上下文窗口上限，默认 1M（deepseek-v4.1-flash）；换其他窗口大小的模型请同步修改 |
-| `COLOR` / `RESET` / `GREEN` | 状态栏配色（默认按 CLI 暗色主题校准：文字 #8A94A8、进度条 #2EBD8E） |
+| `LANG` | 界面语言：`"zh-CN"`（默认，万/亿）/ `"en"`（英文标签 + k/M 单位） |
+| `COLOR` / `RESET` / `GREEN` / `RED` / `BLUE` / `PURPLE` | 状态栏配色（暗色主题校准：文字 #8A94A8、进度条 #2EBD8E、峰段 #D65A5A、缓存率 #5096E6、费用 #A078DC） |
 | `BAND_MODEL_IDS` | 峰谷计费模型清单（CLI 新增时段计费模型时补 id） |
 
 ## 排障
@@ -73,7 +75,7 @@ fsutil behavior set disablelastaccess 2     （开启后重开会话生效）
 ### 其他问题
 
 用 `set CC_USAGE_DEBUG=1&& cmdc` 启动会话，每次刷新会追加日志到 `%TEMP%\cc-usage-mod.log`；
-删除 `%USERPROFILE%\.commandcode\mods\usage-context\` 文件夹即彻底移除，无任何残留。
+删除 `%USERPROFILE%\.commandcode\mods\commandcode-usage-context\` 文件夹即彻底移除，无任何残留。
 
 ## 已知限制
 
@@ -103,6 +105,7 @@ Input: 696.7万|Output: 12.1万|Cache: 686.4万|Cache rate: 98.5%|Cost: 0.1086|C
 
 - **Refreshes on every model response** (granularity = per API call)
 - **Peak/off-peak aware cost**: weekdays 9:00-12:00 & 14:00-18:00 Beijing time are peak (2× rates); weekends and all other hours are off-peak (1×)
+- **Live peak/off-peak tag**: the leftmost segment shows `peak2x` / `offpeak1x` plus a `to peak` / `to offpeak` countdown that flips automatically at the boundary
 - **Context window progress bar**: see session context usage at a glance
 - Runs fully locally, never goes online, injects nothing into the model — **zero token overhead**
 
@@ -125,7 +128,7 @@ model request, and at turn end. "Which session was just resumed" is identified b
 
 The installer auto-detects: the CLI data directory, the cmdc command and version, and whether atime is enabled — anything abnormal gets a clear message.
 
-(Manual: copy the `commandcode-usage` folder into `%USERPROFILE%\.commandcode\mods\`)
+(Manual: copy the `commandcode-usage-context` folder into `%USERPROFILE%\.commandcode\mods\`)
 
 ## Display semantics
 
@@ -141,7 +144,8 @@ The installer auto-detects: the CLI data directory, the cmdc command and version
 | Constant | Meaning |
 |---|---|
 | `CONTEXT_LIMIT` | Context window limit, default 1M (deepseek-v4.1-flash); adjust when switching models |
-| `COLOR` / `RESET` / `GREEN` | Status bar colors (calibrated for the CLI dark theme: text #8A94A8, bar #2EBD8E) |
+| `LANG` | UI language: `"zh-CN"` (default, 万/亿) / `"en"` (English labels + k/M units) |
+| `COLOR` / `RESET` / `GREEN` / `RED` / `BLUE` / `PURPLE` | Status bar colors (dark theme: text #8A94A8, bar #2EBD8E, peak #D65A5A, cache rate #5096E6, cost #A078DC) |
 | `BAND_MODEL_IDS` | Peak/off-peak billing model list (add ids when the CLI adds time-based models) |
 
 ## Troubleshooting
@@ -163,7 +167,7 @@ fsutil behavior set disablelastaccess 2     (restart the session after changing)
 ### Other issues
 
 Start with `set CC_USAGE_DEBUG=1&& cmdc` — every refresh appends to `%TEMP%\cc-usage-mod.log`;
-delete `%USERPROFILE%\.commandcode\mods\usage-context\` to remove the mod completely, no leftovers.
+delete `%USERPROFILE%\.commandcode\mods\commandcode-usage-context\` to remove the mod completely, no leftovers.
 
 ## Known limitations
 

@@ -18,6 +18,9 @@ const freshTotals = () => ({ req: 0, "in": 0, out: 0, cr: 0, cw: 0, cost: 0, ctx
 const COLOR = "\u001b[38;2;138;148;168m";
 const RESET = "\u001b[0m";
 const GREEN = "\u001b[38;2;46;189;142m"; // 主题 GREEN #2EBD8E，用于进度条
+const RED = "\u001b[38;2;214;90;90m";    // 峰段标记，提醒当前按 2x 计费
+const BLUE = "\u001b[38;2;80;150;230m";  // 缓存率
+const PURPLE = "\u001b[38;2;160;120;220m"; // 费用
 
 // 峰谷规则——取自 CLI 内置价目表：峰段 = UTC 周一至周五的 01-04 与 06-10 点
 // （北京时间 9-12、14-18），周末与其余时段为谷段；时段计费模型的峰段价恒为谷段价 2×，
@@ -36,7 +39,32 @@ const BAND_MODEL_IDS = new Set([
 // 上下文窗口上限（deepseek-v4.1-flash = 1M，与 CLI 内置指示一致）。换模型请改这里
 const CONTEXT_LIMIT = 1_000_000;
 
+// 界面语言：改 LANG 即可切换（"zh-CN" 中文 / "en" English）。
+// 想让别的语言也能用，照 LABELS 的形状加一项就行。
+const LANG = "zh-CN";
+const LABELS = {
+  "zh-CN": {
+    units: "myriad",                                       // 万 / 亿
+    peak: "峰2.0x", off: "谷1.0x", toPeak: "距峰", toOff: "距谷",
+    input: "输入:", output: "输出:", cache: "缓存:",
+    rate: "缓存率:", cost: "费用:", ctx: "上下文:",
+  },
+  en: {
+    units: "si",                                           // k / M
+    peak: "peak2x", off: "offpeak1x", toPeak: "to peak ", toOff: "to offpeak ",
+    input: "in:", output: "out:", cache: "cache:",
+    rate: "cache hit:", cost: "cost:", ctx: "ctx:",
+  },
+};
+const L = LABELS[LANG] ?? LABELS["zh-CN"];
+
 function fmtTokens(n) {
+  if (L.units === "si") {
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
+    if (n >= 1e4) return (n / 1e3).toFixed(1) + "k";
+    if (n >= 1e3) return (n / 1e3).toFixed(2) + "k";
+    return String(n);
+  }
   if (n >= 1e8) return (n / 1e8).toFixed(2) + "亿";
   if (n >= 1e4) return (n / 1e4).toFixed(1) + "万";
   return String(n);
@@ -47,6 +75,43 @@ function isBandModel(model) {
   if (!model) return false;
   const m = String(model).toLowerCase();
   return m.startsWith("deepseek/deepseek-") || BAND_MODEL_IDS.has(m);
+}
+
+// 某时刻是否落在峰段（UTC 周一至周五的 01-04、06-10 点）。
+// 与 render 的峰谷标记共用，避免计费修正与状态显示口径漂移。
+function isPeakAt(d) {
+  return PEAK_DAYS_UTC.includes(d.getUTCDay())
+    && PEAK_WINDOWS_UTC.some(([ws, we]) => d.getUTCHours() >= ws && d.getUTCHours() < we);
+}
+
+// 峰谷状态：给定时刻是否落在峰段，以及距下一个边界的毫秒数。
+// 峰段 = PEAK_DAYS_UTC 的 PEAK_WINDOWS_UTC 内；边界即各窗口的开点与闭点。
+function peakStateAt(now) {
+  const nowMs = now.getTime();
+  const inPeak = isPeakAt(now);
+  const base = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0);
+  let next = null;
+  // 往后扫 8 天，足以跨过整个周末（最长空档 = 周五 10 点 → 周一 1 点，79 小时）
+  for (let d = 0; d <= 8; d++) {
+    const dayStart = base + d * 86400000;
+    if (!PEAK_DAYS_UTC.includes(new Date(dayStart).getUTCDay())) continue;
+    for (const [ws, we] of PEAK_WINDOWS_UTC) {
+      for (const b of [ws, we]) {
+        const t = dayStart + b * 3600000;
+        if (t <= nowMs) continue;
+        if (next === null || t < next) next = t;
+      }
+    }
+  }
+  return { inPeak, ms: next === null ? 0 : next - nowMs };
+}
+
+// 倒计时文案：<1h 用分钟，否则 h+2 位分钟；>24h 用天
+function fmtCountdown(ms) {
+  const min = Math.max(0, Math.round(ms / 60000));
+  if (min < 60) return min + "m";
+  if (min < 1440) return Math.floor(min / 60) + "h" + String(min % 60).padStart(2, "0") + "m";
+  return Math.floor(min / 1440) + "d" + Math.floor((min % 1440) / 60) + "h";
 }
 
 // 与 CLI 内置 formatContextTokenCount 同风格：30.0k / 1M
@@ -136,10 +201,7 @@ export default async function (ctx) {
       let cost = recorded;
       const ts = d.timestamp ? new Date(d.timestamp) : null;
       if (!isNaN(ts) && isBandModel(d.model)) {
-        const h = ts.getUTCHours(), day = ts.getUTCDay();
-        if (PEAK_DAYS_UTC.includes(day) && PEAK_WINDOWS_UTC.some(([ws, we]) => h >= ws && h < we)) {
-          cost = recorded * 2;
-        }
+        if (isPeakAt(ts)) cost = recorded * 2;
       }
       st.totals.cost += cost;
     }
@@ -149,14 +211,20 @@ export default async function (ctx) {
     const t = st.totals;
     if (t.req === 0) return;
     const rate = t["in"] > 0 ? (t.cr / t["in"] * 100).toFixed(1) : "0";
+    const ps = peakStateAt(new Date());
+    // 窄屏适配：冒号后的空格、各段前导空格一律省掉，每项省 1 列，8 项共省 8 列。
+    // 峰谷最左（决策信息），尾部费用/上下文在窄终端被 truncate 砍掉时最先牺牲。
+    const peakTag = ps.inPeak ? `${RED}${L.peak}${COLOR}` : L.off;
+    const etaTag = (ps.inPeak ? L.toOff : L.toPeak) + fmtCountdown(ps.ms);
     let text = COLOR
-      + `输入: ${fmtTokens(t["in"])}|输出: ${fmtTokens(t.out)}|缓存: ${fmtTokens(t.cr)}`
-      + `|缓存率: ${rate}%|费用: ${t.cost.toFixed(4)}`;
+      + `${peakTag}|${etaTag}`
+      + `|${L.input}${fmtTokens(t["in"])}|${L.output}${fmtTokens(t.out)}|${L.cache}${fmtTokens(t.cr)}`
+      + `|${BLUE}${L.rate}${rate}%${COLOR}|${PURPLE}${L.cost}${t.cost.toFixed(4)}${COLOR}`;
     if (t.ctx > 0) {
       const pct = Math.min(100, t.ctx / CONTEXT_LIMIT * 100);
       const filled = Math.round(pct / 10);
       const bar = "█".repeat(filled) + "░".repeat(10 - filled);
-      text += `|上下文: ${GREEN}${bar}${COLOR} ${pct.toFixed(1)}% ${fmtK(t.ctx)}/${fmtK(CONTEXT_LIMIT)}`;
+      text += `|${L.ctx}${GREEN}${bar}${COLOR} ${pct.toFixed(1)}% ${fmtK(t.ctx)}/${fmtK(CONTEXT_LIMIT)}`;
     }
     text += RESET;
     if (text !== st.lastText) {
@@ -165,6 +233,20 @@ export default async function (ctx) {
       debug(text);
     }
   };
+
+  // 峰谷状态是时钟函数，不依赖任何 CLI 事件——空闲时必须靠定时器自行刷新，
+  // 否则倒计时会停在最后一次事件触发的时刻、跨过边界也不翻转。
+  // 用递归 timeout 而非固定 interval：延迟取「距下次边界 +2s」与 60s 的较小值，
+  // 边界处能精确翻转，空闲时也不过是每分钟一次空刷新。
+  let peakTimer = null;
+  const schedulePeakTick = () => {
+    if (peakTimer) clearTimeout(peakTimer);
+    const ps = peakStateAt(new Date());
+    const delay = Math.min(60_000, Math.max(1_000, ps.ms + 2_000));
+    peakTimer = setTimeout(() => { refresh(); schedulePeakTick(); }, delay);
+    peakTimer.unref && peakTimer.unref();
+  };
+  const stopPeakTimer = () => { if (peakTimer) { clearTimeout(peakTimer); peakTimer = null; } };
 
   const refresh = () => {
     try {
@@ -250,6 +332,7 @@ export default async function (ctx) {
       if (arg && arg.source === "resume") {
         try { seedLatestSession(leaving); if (st.file) refresh(); } catch {}
       }
+      schedulePeakTick(); // 峰谷状态与用量无关，会话一开始就要显示并在边界自动翻转
       try {
         for (const ev of ["model_request_end", "turn_start"]) {
           ctx.events.on(ev, refresh);
@@ -268,6 +351,9 @@ export default async function (ctx) {
     async onTurnEnd(e) {
       try { adoptSession(e && e.state && e.state.sessionId); refreshWithRetry(); } catch {}
       return e.state;
+    },
+    async onSessionEnd() {
+      stopPeakTimer();
     },
   });
 }
