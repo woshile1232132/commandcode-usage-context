@@ -1,13 +1,14 @@
 // commandcode-usage mod — 在 CommandCode 交互界面底部常驻显示当前会话的
 // token 用量与牌价费用。数据源为本机会话记录（~/.commandcode/projects/），
 // 运行时事件仅作为刷新触发器，不向模型注入任何内容，零 token 消耗。
+// 另可选开启「剩余额度查询」：只读 CLI 账单接口（见文件内 QUOTA 配置，可关闭）。
 //
 // 数字口径：token 为 CLI 落盘的官方真实用量；费用为峰谷感知重算
 //   （谷段 1×、峰段 2×，价目与窗口取自 CLI 内置价目表，周末全谷），非实际账单。
 //
 // 环境变量 CC_USAGE_DEBUG=1 时，把每次刷新的状态文本追加到 %TEMP%/cc-usage-mod.log
 // 便于无头模式验证与排障。
-import { closeSync, readdirSync, readSync, appendFileSync, openSync, statSync, utimesSync } from "node:fs";
+import { closeSync, readdirSync, readSync, appendFileSync, openSync, statSync, utimesSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -16,6 +17,7 @@ const freshTotals = () => ({ req: 0, "in": 0, out: 0, cr: 0, cw: 0, cost: 0, ctx
 // 与 CLI 底部提示行（"? for shortcuts · taste off"）一致的主题 DIM 色 #8A94A8；
 // 浅色主题或其他偏好请改这里（sanitizeStatusText 不剥 ANSI 码，可透传）
 const COLOR = "\u001b[38;2;138;148;168m";
+const QUOTA_COLOR = COLOR;               // 剩余额度段配色（想单独配色就换一个 ANSI 码）
 const RESET = "\u001b[0m";
 const GREEN = "\u001b[38;2;46;189;142m"; // 主题 GREEN #2EBD8E，用于进度条
 const RED = "\u001b[38;2;214;90;90m";    // 峰段标记，提醒当前按 2x 计费
@@ -50,15 +52,46 @@ const LABELS = {
     peak: "峰2.0x", off: "谷1.0x", toPeak: "距峰", toOff: "距谷",
     input: "输入:", output: "输出:", cache: "缓存:",
     rate: "缓存率:", cost: "费用:", ctx: "上下文:",
+    quota: "额度剩余 {rpct}% · 已用 {pct}%",
+    quotaExtras: "额度 {left} · 已用 {pct}%",
+    quotaFallback: "额度 {left}",
   },
   en: {
     units: "si",                                           // k / M
     peak: "peak2x", off: "offpeak1x", toPeak: "to peak ", toOff: "to offpeak ",
     input: "in:", output: "out:", cache: "cache:",
     rate: "cache hit:", cost: "cost:", ctx: "ctx:",
+    quota: "credits {rpct}% left · {pct}% used",
+    quotaExtras: "credits {left} · {pct}% used",
+    quotaFallback: "credits {left}",
   },
 };
 const L = LABELS[LANG] ?? LABELS["zh-CN"];
+
+// ===================== 剩余额度查询（默认开启，可用 QUOTA.enabled 关掉） =====================
+// 只读 GET，不走模型网关、不消耗 token；未登录 / BYOK（auth.json 无 apiKey）时自动跳过。
+const QUOTA = {
+  enabled: true,
+  ttlMs: 120_000,          // 刷新节流：两次请求最小间隔；别调到 10s 以下——这是 CLI 的内部账单接口
+  timeoutMs: 8_000,        // 单次请求超时
+  position: "head",        // "head" 放最左（窄终端也能保住）/ "tail" 追加行尾
+  template: L.quota,       // 占位符：{rpct} 剩余% {rpct1} 剩余%(1位) {pct} 已用% {left} 绝对额度 {plan} 套餐名
+  fallback: L.quotaFallback,      // 套餐不在下表时退化为只显示绝对额度
+  extrasFallback: true,           // 有购买/赠送额度时用 L.quotaExtras（只算月池的百分比会误导）
+};
+// 内置套餐额度表（额度百分比的分子/分母口径）。官方加或改套餐时同步；不在表里的 plan 只显示绝对额度。
+const PLAN_TOTAL_CREDITS = {
+  "individual-go": 10, "individual-goat": 70, "individual-pro": 30,
+  "individual-pro-v1": 80, "individual-provider": 15, "individual-max": 150,
+  "individual-ultra": 300, "teams-pro": 40,
+};
+const PLAN_LABELS = {
+  "individual-go": "Go", "individual-goat": "GOAT", "individual-pro": "Pro",
+  "individual-pro-v1": "Pro", "individual-provider": "Provider",
+  "individual-max": "Max", "individual-ultra": "Ultra", "teams-pro": "Teams Pro",
+};
+const API_BASE = "https://api.commandcode.ai";
+const API_KEY_ENV = ["COMMAND_CODE_API_KEY"];   // 与 CLI 一致的环境变量回退
 
 function fmtTokens(n) {
   if (L.units === "si") {
@@ -126,6 +159,77 @@ function fmtK(n) {
   return String(n);
 }
 
+// ------------------------- 剩余额度：取数与渲染 -------------------------
+// 读本机 auth.json 的 apiKey（与 CLI 同源）；环境变量优先
+function readAuthKey() {
+  for (const k of API_KEY_ENV) {
+    const v = process.env[k];
+    if (v && v.trim()) return v.trim();
+  }
+  try {
+    const j = JSON.parse(readFileSync(join(homedir(), ".commandcode", "auth.json"), "utf8"));
+    return typeof j.apiKey === "string" && j.apiKey ? j.apiKey : null;
+  } catch { return null; }
+}
+
+const pick = (...vals) => vals.find((v) => v !== undefined && v !== null) ?? null;
+
+function fmtCredits(n) {
+  if (!Number.isFinite(n)) return "-";
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+// 返回 {planLabel,total,remaining,pctUsed,pctLeft,hasExtras} 或 null（不可用时静默跳过）
+async function fetchQuota() {
+  if (!QUOTA.enabled) return null;
+  const key = readAuthKey();
+  if (!key) return null;                        // 未登录 / BYOK → 不显示额度段
+  const headers = { "Content-Type": "application/json", Authorization: "Bearer " + key };
+  const get = async (path) => {
+    const r = await fetch(API_BASE + path, { headers, signal: AbortSignal.timeout(QUOTA.timeoutMs) });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  };
+  const who = await get("/alpha/whoami?limits=1").catch(() => null);   // orgId（个人号为空）
+  const orgId = pick(who?.org?.id, who?.data?.org?.id);
+  const q = orgId ? "?orgId=" + encodeURIComponent(orgId) : "";
+  const [sub, cr] = await Promise.all([
+    get("/alpha/billing/subscriptions" + q).catch(() => null),
+    get("/alpha/billing/credits" + q),
+  ]);
+  const planId = pick(sub?.data?.data?.planId, sub?.data?.planId, sub?.planId);
+  const c = pick(cr?.data?.credits, cr?.credits) ?? cr?.data ?? cr;
+  const monthly = Number(pick(c?.monthlyCredits, 0));
+  const purchased = Number(pick(c?.purchasedCredits, 0));
+  const free = Number(pick(c?.freeCredits, 0));
+  const remaining = monthly + purchased + free;
+  const total = planId ? (PLAN_TOTAL_CREDITS[String(planId).toLowerCase()] ?? null) : null;
+  // 与 CLI 同口径：已用% 只看月度池 (总额 − 月度余额) / 总额；购买/赠送不参与百分比
+  const pctUsed = total ? Math.min(100, Math.max(0, (total - monthly) / total * 100)) : null;
+  return {
+    planLabel: planId ? (PLAN_LABELS[String(planId).toLowerCase()] ?? planId) : null,
+    total, remaining, pctUsed,
+    pctLeft: pctUsed === null ? null : 100 - pctUsed,
+    hasExtras: purchased + free > 0,
+  };
+}
+
+function renderQuota(q) {
+  if (!q) return "";
+  const has = (x) => x !== null && x !== undefined;
+  const vals = {
+    rpct: has(q.pctLeft) ? String(Math.round(q.pctLeft)) : "",
+    rpct1: has(q.pctLeft) ? q.pctLeft.toFixed(1) : "",
+    pct: has(q.pctUsed) ? String(Math.round(q.pctUsed)) : "",
+    left: fmtCredits(q.remaining),
+    plan: q.planLabel ?? "",
+  };
+  let tpl = QUOTA.template;
+  if (q.hasExtras && QUOTA.extrasFallback) tpl = L.quotaExtras;
+  if (!has(q.pctLeft)) tpl = QUOTA.fallback;
+  return tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vals ? vals[k] : m)).trim();
+}
+
 export default async function (ctx) {
   const st = {
     sessionId: null,
@@ -133,6 +237,9 @@ export default async function (ctx) {
     offset: 0,        // 已消费的字节偏移
     totals: freshTotals(),
     lastText: "",
+    quota: null,      // 最近一次成功取到的额度
+    quotaAt: 0,       // 上次尝试时间（失败也记账，避免每轮重试打网络）
+    quotaBusy: false,
   };
 
   const debug = (msg) => {
@@ -211,23 +318,29 @@ export default async function (ctx) {
 
   const render = () => {
     const t = st.totals;
-    if (t.req === 0) return;
+    // 会话刚开始还没用量：只要有额度数字就先显示，等第一轮用量落盘再补齐
+    if (t.req === 0 && !renderQuota(st.quota)) return;
     const rate = t["in"] > 0 ? (t.cr / t["in"] * 100).toFixed(1) : "0";
     const ps = peakStateAt(new Date());
     // 窄屏适配：冒号后的空格、各段前导空格一律省掉，每项省 1 列，8 项共省 8 列。
     // 峰谷最左（决策信息），尾部费用/上下文在窄终端被 truncate 砍掉时最先牺牲。
     const peakTag = ps.inPeak ? `${RED}${L.peak}${COLOR}` : L.off;
     const etaTag = (ps.inPeak ? L.toOff : L.toPeak) + fmtCountdown(ps.ms);
-    let text = COLOR
-      + `${peakTag}|${etaTag}`
-      + `|${L.input}${fmtTokens(t["in"])}|${L.output}${fmtTokens(t.out)}|${L.cache}${fmtTokens(t.cr)}`
-      + `|${BLUE}${L.rate}${rate}%${COLOR}|${PURPLE}${L.cost}${t.cost.toFixed(4)}${COLOR}`;
-    if (t.ctx > 0) {
-      const pct = Math.min(100, t.ctx / CONTEXT_LIMIT * 100);
-      const filled = Math.round(pct / 10);
-      const bar = "█".repeat(filled) + "░".repeat(10 - filled);
-      text += `|${L.ctx}${GREEN}${bar}${COLOR} ${pct.toFixed(1)}% ${fmtK(t.ctx)}/${fmtK(CONTEXT_LIMIT)}`;
+    const quotaText = renderQuota(st.quota);
+    let text = COLOR;
+    if (quotaText && QUOTA.position === "head") text += `${QUOTA_COLOR}${quotaText}${COLOR}|`;
+    text += `${peakTag}|${etaTag}`;
+    if (t.req > 0) {
+      text += `|${L.input}${fmtTokens(t["in"])}|${L.output}${fmtTokens(t.out)}|${L.cache}${fmtTokens(t.cr)}`
+        + `|${BLUE}${L.rate}${rate}%${COLOR}|${PURPLE}${L.cost}${t.cost.toFixed(4)}${COLOR}`;
+      if (t.ctx > 0) {
+        const pct = Math.min(100, t.ctx / CONTEXT_LIMIT * 100);
+        const filled = Math.round(pct / 10);
+        const bar = "█".repeat(filled) + "░".repeat(10 - filled);
+        text += `|${L.ctx}${GREEN}${bar}${COLOR} ${pct.toFixed(1)}% ${fmtK(t.ctx)}/${fmtK(CONTEXT_LIMIT)}`;
+      }
     }
+    if (quotaText && QUOTA.position === "tail") text += `|${QUOTA_COLOR}${quotaText}${COLOR}`;
     text += RESET;
     if (text !== st.lastText) {
       st.lastText = text;
@@ -250,10 +363,23 @@ export default async function (ctx) {
   };
   const stopPeakTimer = () => { if (peakTimer) { clearTimeout(peakTimer); peakTimer = null; } };
 
+  // 额度刷新：与会话用量相互独立，按 ttlMs 节流；失败保留上次值、静默降级
+  const refreshQuota = (force) => {
+    if (!QUOTA.enabled || st.quotaBusy) return;
+    if (!force && Date.now() - st.quotaAt < QUOTA.ttlMs) return;
+    st.quotaBusy = true;
+    st.quotaAt = Date.now();
+    fetchQuota()
+      .then((q) => { if (q) { st.quota = q; render(); } })
+      .catch((e) => { debug(`quota error ${e && e.message}`); })
+      .finally(() => { st.quotaBusy = false; });
+  };
+
   const refresh = () => {
     try {
       debug(`refresh sid=${st.sessionId} file=${st.file || "-"} req=${st.totals.req}`);
       locateFile(); consume(); render();
+      refreshQuota(false);   // 内部按 QUOTA.ttlMs 节流，调用是廉价的
     } catch {}
   };
 
@@ -335,6 +461,7 @@ export default async function (ctx) {
         try { seedLatestSession(leaving); if (st.file) refresh(); } catch {}
       }
       schedulePeakTick(); // 峰谷状态与用量无关，会话一开始就要显示并在边界自动翻转
+      refreshQuota(true); // 额度同理：会话一开始就取，不等第一次交互
       try {
         for (const ev of ["model_request_end", "turn_start"]) {
           ctx.events.on(ev, refresh);
@@ -359,3 +486,6 @@ export default async function (ctx) {
     },
   });
 }
+
+// 供排障用：node -e "import(...).then(async m=>console.log(await m.__test.fetchQuota()))"
+export const __test = { fetchQuota, renderQuota, readAuthKey, fmtTokens, fmtK, peakStateAt, QUOTA, LABELS };
