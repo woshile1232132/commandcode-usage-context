@@ -21,8 +21,10 @@ const QUOTA_COLOR = COLOR;               // 剩余额度段配色（想单独配
 
 // 显示哪些段：false = 隐藏。缓存绝对量与缓存率信息重叠（缓存 ≈ 输入 × 缓存率，可自己推算），
 // 默认只留缓存率，省 13 列；想看绝对量把它打开即可。
-const SHOW = { cacheAbs: false };
+const SHOW = { cacheAbs: false, ctxAbs: false };
+// ctxAbs=false：上下文段只显示百分比（不显示 33.6k/1M）
 const RESET = "\u001b[0m";
+const CTX_BAR_CELLS = 6;                 // 上下文进度条格数（10 → 6，省 8 列）
 const GREEN = "\u001b[38;2;46;189;142m"; // 主题 GREEN #2EBD8E，用于进度条
 const RED = "\u001b[38;2;214;90;90m";    // 峰段标记，提醒当前按 2x 计费
 const BLUE = "\u001b[38;2;80;150;230m";  // 缓存率
@@ -340,9 +342,11 @@ export default async function (ctx) {
       text += `|${BLUE}${L.rate}${rate}%${COLOR}|${PURPLE}${L.cost}${t.cost.toFixed(4)}${COLOR}`;
       if (t.ctx > 0) {
         const pct = Math.min(100, t.ctx / CONTEXT_LIMIT * 100);
-        const filled = Math.round(pct / 10);
-        const bar = "█".repeat(filled) + "░".repeat(10 - filled);
-        text += `|${L.ctx}${GREEN}${bar}${COLOR} ${pct.toFixed(1)}% ${fmtK(t.ctx)}/${fmtK(CONTEXT_LIMIT)}`;
+        const cells = CTX_BAR_CELLS;
+        const filled = Math.round(pct / 100 * cells);
+        const bar = "█".repeat(filled) + "░".repeat(cells - filled);
+        text += `|${L.ctx}${GREEN}${bar}${COLOR} ${pct.toFixed(1)}%`;
+        if (SHOW.ctxAbs) text += ` ${fmtK(t.ctx)}/${fmtK(CONTEXT_LIMIT)}`;
       }
     }
     if (quotaText && QUOTA.position === "tail") text += `|${QUOTA_COLOR}${quotaText}${COLOR}`;
