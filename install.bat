@@ -98,6 +98,13 @@ call :atimecheck
 
 
 
+rem 3.5) 清理旧版安装目录（文件夹曾名 usage-context，升级时避免两个 mod 同时加载）
+set "LEGACY=%USERPROFILE%\.commandcode\mods\usage-context"
+if exist "%LEGACY%" (
+  rmdir /s /q "%LEGACY%"
+  echo [OK] 已清理旧版目录 usage-context
+)
+
 rem 4) 安装 mod
 
 
