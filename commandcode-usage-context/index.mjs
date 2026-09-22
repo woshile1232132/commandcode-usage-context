@@ -18,6 +18,10 @@ const freshTotals = () => ({ req: 0, "in": 0, out: 0, cr: 0, cw: 0, cost: 0, ctx
 // 浅色主题或其他偏好请改这里（sanitizeStatusText 不剥 ANSI 码，可透传）
 const COLOR = "\u001b[38;2;138;148;168m";
 const QUOTA_COLOR = COLOR;               // 剩余额度段配色（想单独配色就换一个 ANSI 码）
+
+// 显示哪些段：false = 隐藏。缓存绝对量与缓存率信息重叠（缓存 ≈ 输入 × 缓存率，可自己推算），
+// 默认只留缓存率，省 13 列；想看绝对量把它打开即可。
+const SHOW = { cacheAbs: false };
 const RESET = "\u001b[0m";
 const GREEN = "\u001b[38;2;46;189;142m"; // 主题 GREEN #2EBD8E，用于进度条
 const RED = "\u001b[38;2;214;90;90m";    // 峰段标记，提醒当前按 2x 计费
@@ -331,8 +335,9 @@ export default async function (ctx) {
     if (quotaText && QUOTA.position === "head") text += `${QUOTA_COLOR}${quotaText}${COLOR}|`;
     text += `${peakTag}|${etaTag}`;
     if (t.req > 0) {
-      text += `|${L.input}${fmtTokens(t["in"])}|${L.output}${fmtTokens(t.out)}|${L.cache}${fmtTokens(t.cr)}`
-        + `|${BLUE}${L.rate}${rate}%${COLOR}|${PURPLE}${L.cost}${t.cost.toFixed(4)}${COLOR}`;
+      text += `|${L.input}${fmtTokens(t["in"])}|${L.output}${fmtTokens(t.out)}`;
+      if (SHOW.cacheAbs) text += `|${L.cache}${fmtTokens(t.cr)}`;
+      text += `|${BLUE}${L.rate}${rate}%${COLOR}|${PURPLE}${L.cost}${t.cost.toFixed(4)}${COLOR}`;
       if (t.ctx > 0) {
         const pct = Math.min(100, t.ctx / CONTEXT_LIMIT * 100);
         const filled = Math.round(pct / 10);
