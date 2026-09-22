@@ -11,13 +11,13 @@
 在 Command Code CLI 交互界面底部常驻一行实时状态栏，无需发消息、无需切窗口：
 
 ```
-额度剩余 64% · 已用 36%|峰2.0x|距谷2h13m|输入:696.7万|输出:12.1万|缓存率:98.5%|费用:0.1086|上下文:██░░░░░░░░ 19.5% 194.8k/1M
+额度剩余 64%|峰2.0x|距谷2h13m|输入:696.7万|输出:12.1万|缓存率:98.5%|费用:0.1086|上下文:██░░░░░░░░ 19.5% 194.8k/1M
 ```
 
 - **每次模型响应完成即刷新**（时间粒度 = 每次 API 调用）
 - **峰谷感知计费**：工作日北京时间 9-12、14-18 为峰段（2× 价），周末与其余时段谷段（1×）
 - **峰谷实时标记**：状态栏最左显示 `峰2.0x` / `谷1.0x` 与 `距峰/距谷` 倒计时，跨边界自动翻转
-- **剩余额度查询（可选）**：读本机 `auth.json` 凭据只读查询套餐额度，显示剩余/已用百分比；未登录或 BYOK 时自动隐藏该段
+- **剩余额度查询（可选）**：读本机 `auth.json` 凭据只读查询套餐额度，显示剩余百分比；未登录或 BYOK 时自动隐藏该段
 - **上下文窗口进度条**：一眼看出当前会话上下文占用
 - token / 费用 / 上下文全程本地解析、不联网；仅「剩余额度查询」会向 `api.commandcode.ai` 发只读请求（可用 `QUOTA.enabled` 关闭）。不向模型注入任何内容，**零 token 消耗**
 
@@ -51,7 +51,7 @@ mod 通过 CLI 自带的 mod 加载机制（`~/.commandcode/mods/`）注册钩�
 | 缓存率 | 缓存读 ÷ 输入（缓存读是输入的子集，越高越省钱） |
 | 费用 | 按官方牌价折算的**参考值**（峰谷感知），非实际账单——订阅套餐扣的是额度，精确账单以官网为准 |
 | 上下文 | 最近一次请求的总输入 ÷ 窗口上限（估算口径，与 CLI 内置指示一致） |
-| 额度 | 套餐月度额度池的剩余 / 已用百分比（月池口径）；有购买 / 赠送额度时自动改为显示绝对剩余，避免误导 |
+| 额度 | 套餐月度额度池的剩余百分比（月池口径）；有购买 / 赠送额度时自动改为显示绝对剩余，避免误导 |
 
 ## 剩余额度查询（可选，默认开启）
 
@@ -59,7 +59,7 @@ mod 通过 CLI 自带的 mod 加载机制（`~/.commandcode/mods/`）注册钩�
 
 - **请求量**：会话开始 2~3 个请求，之后最多每 2 分钟 1 个（`QUOTA.ttlMs` 节流）；**不消耗 token / 额度**
 - **隐私**：凭据只在本机读取、只发给 `api.commandcode.ai`；不落盘、不外发其它域名
-- **口径**：`已用% =（套餐额度总额 − 月度剩余）/ 总额`；购买 / 赠送池不计入百分比，有额外额度时自动改用绝对剩余
+- **口径**：`剩余% = 月度剩余 / 套餐额度总额`；购买 / 赠送池不计入百分比，有额外额度时自动改用绝对剩余
 - **关闭**：把 `QUOTA` 里的 `enabled` 改成 `false`（即回到完全本地、零网络请求）
 - ⚠️ `/alpha/*` 是 CLI 内部接口（官方未公开承诺）；接口变动时该段会静默消失，不影响其它显示
 
@@ -134,13 +134,13 @@ fsutil behavior set disablelastaccess 2     （开启后重开会话生效）
 A live status bar pinned to the bottom of the Command Code CLI interactive UI — no need to send a message or switch windows:
 
 ```
-Credits 64% left · 36% used|peak2x|to offpeak 2h13m|Input:696.7万|Output:12.1万|Cache rate:98.5%|Cost:0.1086|Context:██░░░░░░░░ 19.5% 194.8k/1M
+Credits 64% left|peak2x|to offpeak 2h13m|Input:696.7万|Output:12.1万|Cache rate:98.5%|Cost:0.1086|Context:██░░░░░░░░ 19.5% 194.8k/1M
 ```
 
 - **Refreshes on every model response** (granularity = per API call)
 - **Peak/off-peak aware cost**: weekdays 9:00-12:00 & 14:00-18:00 Beijing time are peak (2× rates); weekends and all other hours are off-peak (1×)
 - **Live peak/off-peak tag**: the leftmost segment shows `peak2x` / `offpeak1x` plus a `to peak` / `to offpeak` countdown that flips automatically at the boundary
-- **Remaining credits (optional)**: reads your local `auth.json` credential and queries your plan quota read-only, showing the left/used percentage; hidden automatically when you are on BYOK or not logged in
+- **Remaining credits (optional)**: reads your local `auth.json` credential and queries your plan quota read-only, showing the remaining percentage; hidden automatically when you are on BYOK or not logged in
 - **Context window progress bar**: see session context usage at a glance
 - Tokens / cost / context are parsed fully locally with no network; only the optional credits lookup sends read-only requests to `api.commandcode.ai` (disable with `QUOTA.enabled`). Nothing is ever injected into the model — **zero token overhead**
 
@@ -175,7 +175,7 @@ The installer auto-detects: the CLI data directory, the cmdc command and version
 | Cache rate | cache read ÷ input (cache read is a subset of input; higher = cheaper) |
 | Cost | A **reference value** converted at official list prices (peak/off-peak aware), not an actual bill — subscriptions deduct quota; exact billing per the official site |
 | Context | Latest request's total input ÷ window limit (estimated, same as the CLI's built-in indicator) |
-| Credits | Left / used percentage of your plan's monthly credit pool (monthly-pool basis); switches to absolute remaining when you own purchased/free credits |
+| Credits | Remaining percentage of your plan's monthly credit pool (monthly-pool basis); switches to absolute remaining when you own purchased/free credits |
 
 ## Remaining credits (optional, on by default)
 
@@ -183,7 +183,7 @@ Reads the credential from your local `~/.commandcode/auth.json` (or the `COMMAND
 
 - **Request volume**: 2–3 requests at session start, then at most one every 2 minutes (`QUOTA.ttlMs`); **no token / credit cost**
 - **Privacy**: the credential is read locally and sent only to `api.commandcode.ai`; nothing is written to disk or sent anywhere else
-- **Semantics**: `used% = (plan total − monthly remaining) / plan total`; purchased / free pools are excluded from the percentage, so the segment switches to absolute remaining when you own extras
+- **Semantics**: `left% = monthly remaining / plan total`; purchased / free pools are excluded from the percentage, so the segment switches to absolute remaining when you own extras
 - **Disable**: set `enabled` to `false` inside `QUOTA` (back to fully local, zero network)
 - ⚠️ `/alpha/*` is an internal CLI endpoint (not officially documented); if it changes, this segment silently disappears while everything else keeps working
 
