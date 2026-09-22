@@ -11,7 +11,7 @@
 在 Command Code CLI 交互界面底部常驻一行实时状态栏，无需发消息、无需切窗口：
 
 ```
-额度剩余 64%|峰2.0x|距谷2h13m|输入:696.7万|输出:12.1万|缓存率:98.5%|费用:0.1086|上下文:██░░░░░░░░ 19.5% 194.8k/1M
+额度剩余 64%|峰2.0x|距谷2h13m|输入:696.7万|输出:12.1万|缓存率:98.5%|费用:0.1086|上下文:█░░░░░ 19.5%
 ```
 
 - **每次模型响应完成即刷新**（时间粒度 = 每次 API 调用）
@@ -70,6 +70,8 @@ mod 通过 CLI 自带的 mod 加载机制（`~/.commandcode/mods/`）注册钩�
 | `CONTEXT_LIMIT` | 上下文窗口上限，默认 1M（deepseek-v4.1-flash）；换其他窗口大小的模型请同步修改 |
 | `LANG` | 界面语言：`"zh-CN"`（默认，万/亿）/ `"en"`（英文标签 + k/M 单位） |
 | `SHOW.cacheAbs` | 是否显示「缓存」绝对量（默认 `false`，只留缓存率，省 13 列） |
+| `SHOW.ctxAbs` | 上下文段是否显示绝对量（默认 `false`，只留百分比） |
+| `CTX_BAR_CELLS` | 上下文进度条格数（默认 `6`） |
 | `QUOTA.enabled` | 剩余额度查询开关（默认 `true`；设 `false` 即完全本地、零网络请求） |
 | `QUOTA.position` | 额度段位置：`"head"` 放最左（窄终端也保得住）/ `"tail"` 追加行尾 |
 | `QUOTA.ttlMs` | 额度刷新节流（默认 120000 = 2 分钟）；别调到 10s 以下，那是内部账单接口 |
@@ -134,7 +136,7 @@ fsutil behavior set disablelastaccess 2     （开启后重开会话生效）
 A live status bar pinned to the bottom of the Command Code CLI interactive UI — no need to send a message or switch windows:
 
 ```
-Credits 64% left|peak2x|to offpeak 2h13m|Input:696.7万|Output:12.1万|Cache rate:98.5%|Cost:0.1086|Context:██░░░░░░░░ 19.5% 194.8k/1M
+Credits 64% left|peak2x|to offpeak 2h13m|Input:696.7万|Output:12.1万|Cache rate:98.5%|Cost:0.1086|Context:█░░░░░ 19.5%
 ```
 
 - **Refreshes on every model response** (granularity = per API call)
@@ -194,6 +196,8 @@ Reads the credential from your local `~/.commandcode/auth.json` (or the `COMMAND
 | `CONTEXT_LIMIT` | Context window limit, default 1M (deepseek-v4.1-flash); adjust when switching models |
 | `LANG` | UI language: `"zh-CN"` (default, 万/亿) / `"en"` (English labels + k/M units) |
 | `SHOW.cacheAbs` | Show the absolute cache figure (default `false`; cache rate only, saves ~13 columns) |
+| `SHOW.ctxAbs` | Show absolute context tokens (default `false`; percentage only) |
+| `CTX_BAR_CELLS` | Context progress-bar cells (default `6`) |
 | `QUOTA.enabled` | Remaining-credits switch (default `true`; set `false` for fully local, zero network requests) |
 | `QUOTA.position` | Credit segment position: `"head"` leftmost (survives narrow terminals) / `"tail"` appended |
 | `QUOTA.ttlMs` | Credits refresh throttle (default 120000 = 2 min); don't go below ~10s, it's an internal billing endpoint |
