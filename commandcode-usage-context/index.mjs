@@ -39,9 +39,11 @@ const BAND_MODEL_IDS = new Set([
 // 上下文窗口上限（deepseek-v4.1-flash = 1M，与 CLI 内置指示一致）。换模型请改这里
 const CONTEXT_LIMIT = 1_000_000;
 
-// 界面语言：改 LANG 即可切换（"zh-CN" 中文 / "en" English）。
+// 界面语言，两种切法（任选其一）：
+//   ① 改下面的 LANG（"zh-CN" 中文 / "en" English），重新安装后重开会话；
+//   ② 设环境变量 CC_USAGE_LANG=en（不改文件，优先级更高），例如：set CC_USAGE_LANG=en&& cmdc
 // 想让别的语言也能用，照 LABELS 的形状加一项就行。
-const LANG = "zh-CN";
+const LANG = process.env.CC_USAGE_LANG || "zh-CN";
 const LABELS = {
   "zh-CN": {
     units: "myriad",                                       // 万 / 亿

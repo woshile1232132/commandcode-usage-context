@@ -58,6 +58,21 @@ mod 通过 CLI 自带的 mod 加载机制（`~/.commandcode/mods/`）注册钩�
 | `COLOR` / `RESET` / `GREEN` / `RED` / `BLUE` / `PURPLE` | 状态栏配色（暗色主题校准：文字 #8A94A8、进度条 #2EBD8E、峰段 #D65A5A、缓存率 #5096E6、费用 #A078DC） |
 | `BAND_MODEL_IDS` | 峰谷计费模型清单（CLI 新增时段计费模型时补 id） |
 
+## 多语言（切换到 English）
+
+两种方式任选其一，**改完重开 commandcode 会话**才生效：
+
+1. **改常量**（推荐）：把 `commandcode-usage-context/index.mjs` 顶部的 `LANG` 改成 `"en"`，保存后双击 `install.bat` 重新安装。
+2. **环境变量**（不改文件，优先级更高）：
+
+   ```
+   set CC_USAGE_LANG=en&& cmdc
+   ```
+
+   想长期生效就写进系统环境变量。
+
+> 语言只影响标签与数字单位（`输入/输出/缓存/缓存率/费用/上下文` ↔ `in/out/cache/cache hit/cost/ctx`，`万/亿` ↔ `k/M`），不影响任何数字口径。
+
 ## 排障
 
 ### /sessions 恢复会话后，显示的是别的会话的数据？
@@ -147,6 +162,21 @@ The installer auto-detects: the CLI data directory, the cmdc command and version
 | `LANG` | UI language: `"zh-CN"` (default, 万/亿) / `"en"` (English labels + k/M units) |
 | `COLOR` / `RESET` / `GREEN` / `RED` / `BLUE` / `PURPLE` | Status bar colors (dark theme: text #8A94A8, bar #2EBD8E, peak #D65A5A, cache rate #5096E6, cost #A078DC) |
 | `BAND_MODEL_IDS` | Peak/off-peak billing model list (add ids when the CLI adds time-based models) |
+
+## Language (switching to English)
+
+Two ways, pick one — **restart your commandcode session** afterwards:
+
+1. **Edit the constant** (recommended): set `LANG` at the top of `commandcode-usage-context/index.mjs` to `"en"`, save, then double-click `install.bat` to reinstall.
+2. **Environment variable** (no file edit, takes precedence):
+
+   ```
+   set CC_USAGE_LANG=en&& cmdc
+   ```
+
+   Put it in your system environment variables to make it stick.
+
+> The language only changes labels and units (`输入/输出/缓存/缓存率/费用/上下文` ↔ `in/out/cache/cache hit/cost/ctx`, `万/亿` ↔ `k/M`); no metric changes.
 
 ## Troubleshooting
 
